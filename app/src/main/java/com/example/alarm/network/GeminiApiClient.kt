@@ -45,8 +45,9 @@ object GeminiApiClient {
     suspend fun fetchLatestAiNews(): List<NewsItem> {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-            LogHelper.w("GeminiApiClient", "API key is missing or is placeholder. Returning mock data.")
-            return getFallbackNews()
+            throw IllegalStateException(
+                "Gemini API key is not configured. Please add your GEMINI_API_KEY in the Secrets panel in AI Studio to load live news."
+            )
         }
 
         // Ask Gemini to generate the top 5 actual current AI news
@@ -88,17 +89,17 @@ object GeminiApiClient {
                 val adapter = moshi.adapter<List<NewsItem>>(
                     com.squareup.moshi.Types.newParameterizedType(List::class.java, NewsItem::class.java)
                 )
-                adapter.fromJson(jsonText) ?: getFallbackNews()
+                adapter.fromJson(jsonText) ?: throw IllegalStateException("Failed to parse Gemini response JSON.")
             } else {
-                getFallbackNews()
+                throw IllegalStateException("Gemini API returned an empty response body.")
             }
         } catch (e: Exception) {
             LogHelper.e("GeminiApiClient", "Error fetching news from Gemini", e)
-            getFallbackNews()
+            throw Exception("Failed to fetch live AI news: ${e.localizedMessage ?: e.message ?: e.toString()}")
         }
     }
 
-    private fun getFallbackNews(): List<NewsItem> {
+    fun getFallbackNews(): List<NewsItem> {
         return listOf(
             NewsItem(
                 title = "Gemini 3.5 Flash Launched by Google",

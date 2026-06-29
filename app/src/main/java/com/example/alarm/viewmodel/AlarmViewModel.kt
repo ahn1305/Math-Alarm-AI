@@ -83,7 +83,7 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
     sealed interface NewsUiState {
         object Idle : NewsUiState
         object Loading : NewsUiState
-        data class Success(val news: List<NewsItem>) : NewsUiState
+        data class Success(val news: List<NewsItem>, val isDemo: Boolean = false) : NewsUiState
         data class Error(val message: String) : NewsUiState
     }
 
@@ -196,11 +196,15 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
             _newsState.value = NewsUiState.Loading
             try {
                 val news = GeminiApiClient.fetchLatestAiNews()
-                _newsState.value = NewsUiState.Success(news)
+                _newsState.value = NewsUiState.Success(news, isDemo = false)
             } catch (e: Exception) {
                 _newsState.value = NewsUiState.Error(e.message ?: "Unknown error loading news")
             }
         }
+    }
+
+    fun loadOfflineDemoNews() {
+        _newsState.value = NewsUiState.Success(GeminiApiClient.getFallbackNews(), isDemo = true)
     }
 
     fun viewNewsDirectly() {

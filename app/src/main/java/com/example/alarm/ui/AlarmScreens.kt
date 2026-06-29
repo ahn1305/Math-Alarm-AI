@@ -898,6 +898,14 @@ fun NewsScreen(viewModel: AlarmViewModel) {
                             contentDescription = "Go back to Alarms"
                         )
                     }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.loadAiNews() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh News"
+                        )
+                    }
                 }
             )
         }
@@ -939,6 +947,46 @@ fun NewsScreen(viewModel: AlarmViewModel) {
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
                     ) {
+                        if (state.isDemo) {
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Warning",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = "Showing Offline / Demo News",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Text(
+                                                text = "To fetch live up-to-date AI news, configure your GEMINI_API_KEY inside the Secrets panel in Google AI Studio.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         item {
                             Text(
                                 text = "Top 5 AI Stories For You",
@@ -993,8 +1041,15 @@ fun NewsScreen(viewModel: AlarmViewModel) {
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = { viewModel.loadAiNews() }) {
-                            Text("Retry")
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(onClick = { viewModel.loadOfflineDemoNews() }) {
+                                Text("View Demo News")
+                            }
+                            Button(onClick = { viewModel.loadAiNews() }) {
+                                Text("Retry")
+                            }
                         }
                     }
                 }
