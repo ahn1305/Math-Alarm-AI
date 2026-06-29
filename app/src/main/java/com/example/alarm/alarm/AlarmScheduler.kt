@@ -20,6 +20,7 @@ class AlarmScheduler(private val context: Context) {
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra("ALARM_ID", alarm.id)
             putExtra("ALARM_LABEL", alarm.label)
+            putExtra("ALARM_TONE_URI", alarm.toneUri)
         }
 
         // Use unique request code per alarm
@@ -84,12 +85,13 @@ class AlarmScheduler(private val context: Context) {
         }
     }
 
-    fun scheduleTestAlarm(delaySeconds: Int, alarmId: Int) {
+    fun scheduleTestAlarm(delaySeconds: Int, alarmId: Int, toneUri: String = "") {
         if (alarmManager == null) return
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra("ALARM_ID", alarmId)
             putExtra("ALARM_LABEL", "Quick Test Alarm")
+            putExtra("ALARM_TONE_URI", toneUri)
             putExtra("IS_TEST", true)
         }
 

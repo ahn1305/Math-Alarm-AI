@@ -40,6 +40,10 @@ import com.example.alarm.data.Alarm
 import com.example.alarm.network.NewsItem
 import com.example.alarm.viewmodel.AlarmViewModel
 import java.util.Calendar
+import android.media.RingtoneManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +77,7 @@ fun AlarmAppContent(viewModel: AlarmViewModel) {
 fun AlarmMainScreen(viewModel: AlarmViewModel) {
     val alarms by viewModel.alarms.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingAlarm by remember { mutableStateOf<Alarm?>(null) }
     val context = LocalContext.current
 
     val gradientBrush = Brush.verticalGradient(
@@ -163,7 +168,8 @@ fun AlarmMainScreen(viewModel: AlarmViewModel) {
                         AlarmItemCard(
                             alarm = alarm,
                             onToggle = { viewModel.toggleAlarm(alarm) },
-                            onDelete = { viewModel.deleteAlarm(alarm) }
+                            onDelete = { viewModel.deleteAlarm(alarm) },
+                            onEditClick = { editingAlarm = alarm }
                         )
                     }
                 }
@@ -173,10 +179,32 @@ fun AlarmMainScreen(viewModel: AlarmViewModel) {
 
     if (showAddDialog) {
         AddAlarmDialog(
+            alarm = null,
             onDismiss = { showAddDialog = false },
-            onConfirm = { hour, minute, label, days ->
-                viewModel.addAlarm(hour, minute, label, days)
+            onConfirm = { hour, minute, label, days, toneUri, toneName ->
+                viewModel.addAlarm(hour, minute, label, days, toneUri, toneName)
                 showAddDialog = false
+            }
+        )
+    }
+
+    if (editingAlarm != null) {
+        AddAlarmDialog(
+            alarm = editingAlarm,
+            onDismiss = { editingAlarm = null },
+            onConfirm = { hour, minute, label, days, toneUri, toneName ->
+                editingAlarm?.let { oldAlarm ->
+                    val updated = oldAlarm.copy(
+                        hour = hour,
+                        minute = minute,
+                        label = label.ifBlank { "Alarm" },
+                        daysSelected = days.joinToString(","),
+                        toneUri = toneUri,
+                        toneName = toneName
+                    )
+                    viewModel.updateAlarm(updated)
+                }
+                editingAlarm = null
             }
         )
     }
@@ -341,7 +369,8 @@ private suspend fun delay(timeMillis: Long) {
 fun AlarmItemCard(
     alarm: Alarm,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEditClick: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -354,6 +383,7 @@ fun AlarmItemCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onEditClick() }
             .testTag("alarm_item_${alarm.id}")
     ) {
         Row(
@@ -392,6 +422,23 @@ fun AlarmItemCard(
                     )
                 }
                 Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = alarm.toneName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = alarm.getDaysSummary(),
                     style = MaterialTheme.typography.bodySmall,
@@ -424,19 +471,48 @@ fun AlarmItemCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddAlarmDialog(
+    alarm: Alarm? = null,
     onDismiss: () -> Unit,
-    onConfirm: (hour: Int, minute: Int, label: String, days: List<String>) -> Unit
+    onConfirm: (hour: Int, minute: Int, label: String, days: List<String>, toneUri: String, toneName: String) -> Unit
 ) {
-    var label by remember { mutableStateOf("") }
+    var label by remember { mutableStateOf(alarm?.label ?: "") }
     val daysOfWeek = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-    val selectedDays = remember { mutableStateListOf<String>() }
+    val selectedDays = remember {
+        val initialDays = alarm?.daysSelected?.split(",")?.filter { it.isNotEmpty() } ?: emptyList()
+        mutableStateListOf<String>().apply { addAll(initialDays) }
+    }
     
-    val calendar = Calendar.getInstance()
     val timePickerState = rememberTimePickerState(
-        initialHour = calendar.get(Calendar.HOUR_OF_DAY),
-        initialMinute = calendar.get(Calendar.MINUTE),
+        initialHour = alarm?.hour ?: java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY),
+        initialMinute = alarm?.minute ?: java.util.Calendar.getInstance().get(java.util.Calendar.MINUTE),
         is24Hour = false
     )
+
+    var toneUri by remember { mutableStateOf(alarm?.toneUri ?: "") }
+    var toneName by remember { mutableStateOf(alarm?.toneName ?: "Default Tone") }
+    val context = LocalContext.current
+
+    val ringtonePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
+            if (uri != null) {
+                val ringtone = RingtoneManager.getRingtone(context, uri)
+                val name = ringtone?.getTitle(context) ?: "Custom Tone"
+                toneUri = uri.toString()
+                toneName = name
+            } else {
+                toneUri = ""
+                toneName = "Default Tone"
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -455,7 +531,7 @@ fun AddAlarmDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Add Alarm",
+                    text = if (alarm == null) "Add Alarm" else "Edit Alarm",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -520,6 +596,77 @@ fun AddAlarmDialog(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Alarm Tone",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    onClick = {
+                        try {
+                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Alarm Tone")
+                                if (toneUri.isNotEmpty()) {
+                                    putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(toneUri))
+                                }
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            }
+                            ringtonePickerLauncher.launch(intent)
+                        } catch (e: Exception) {
+                            android.widget.Toast.makeText(context, "System sound picker not available", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Ringtone",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = toneName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Choose Sound",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Row(
@@ -536,7 +683,9 @@ fun AddAlarmDialog(
                                 timePickerState.hour,
                                 timePickerState.minute,
                                 label,
-                                selectedDays.toList()
+                                selectedDays.toList(),
+                                toneUri,
+                                toneName
                             )
                         },
                         modifier = Modifier.testTag("save_alarm_button")

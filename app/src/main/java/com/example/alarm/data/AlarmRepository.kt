@@ -44,7 +44,7 @@ class AlarmRepository(
         alarmDao.deleteAlarm(alarm)
     }
 
-    fun scheduleQuickTestAlarm(delaySeconds: Int, alarmId: Int) {
-        alarmScheduler.scheduleTestAlarm(delaySeconds, alarmId)
+    fun scheduleQuickTestAlarm(delaySeconds: Int, alarmId: Int, toneUri: String = "") {
+        alarmScheduler.scheduleTestAlarm(delaySeconds, alarmId, toneUri)
     }
 }

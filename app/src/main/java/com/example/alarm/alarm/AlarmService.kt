@@ -54,8 +54,9 @@ class AlarmService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val alarmId = intent?.getIntExtra("ALARM_ID", -1) ?: -1
         val label = intent?.getStringExtra("ALARM_LABEL") ?: "Alarm"
+        val toneUri = intent?.getStringExtra("ALARM_TONE_URI")
         
-        Log.d("AlarmService", "AlarmService starting for alarmId=$alarmId, label=$label")
+        Log.d("AlarmService", "AlarmService starting for alarmId=$alarmId, label=$label, toneUri=$toneUri")
         
         _ringingState.value = RingingState.Ringing(alarmId, label)
 
@@ -84,7 +85,15 @@ class AlarmService : Service() {
             .setFullScreenIntent(pendingIntent, true) // High priority full-screen
             .build()
 
-        startForeground(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID, 
+                notification, 
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
 
         // Automatically launch MainActivity to prompt user
         val launchIntent = Intent(this, MainActivity::class.java).apply {
@@ -94,24 +103,24 @@ class AlarmService : Service() {
         }
         startActivity(launchIntent)
 
-        startRinging()
+        startRinging(toneUri)
         startVibrating()
 
         return START_STICKY
     }
 
-    private fun startRinging() {
+    private fun startRinging(toneUriStr: String?) {
         try {
-            var alarmUri: Uri? = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            if (alarmUri == null) {
-                alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            }
-            if (alarmUri == null) {
-                alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val alarmUri: Uri = if (!toneUriStr.isNullOrEmpty()) {
+                Uri.parse(toneUriStr)
+            } else {
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             }
 
             mediaPlayer = MediaPlayer().apply {
-                setDataSource(this@AlarmService, alarmUri!!)
+                setDataSource(this@AlarmService, alarmUri)
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -123,7 +132,25 @@ class AlarmService : Service() {
                 start()
             }
         } catch (e: Exception) {
-            Log.e("AlarmService", "Failed to start media player", e)
+            Log.e("AlarmService", "Failed to start media player, trying fallback default alarm sound", e)
+            try {
+                val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(this@AlarmService, fallbackUri)
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    prepare()
+                    start()
+                }
+            } catch (fallbackEx: Exception) {
+                Log.e("AlarmService", "Fallback media player also failed", fallbackEx)
+            }
         }
     }
 

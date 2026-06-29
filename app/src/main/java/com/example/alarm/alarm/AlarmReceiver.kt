@@ -13,9 +13,14 @@ class AlarmReceiver : BroadcastReceiver() {
         
         Log.d("AlarmReceiver", "Alarm received: id=$alarmId, label=$label")
         
+        val toneUri = intent.getStringExtra("ALARM_TONE_URI")
+        
+        Log.d("AlarmReceiver", "Alarm received: id=$alarmId, label=$label, toneUri=$toneUri")
+        
         val serviceIntent = Intent(context, AlarmService::class.java).apply {
             putExtra("ALARM_ID", alarmId)
             putExtra("ALARM_LABEL", label)
+            putExtra("ALARM_TONE_URI", toneUri)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

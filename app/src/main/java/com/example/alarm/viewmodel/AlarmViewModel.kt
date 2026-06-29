@@ -88,16 +88,24 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Database Operations ---
-    fun addAlarm(hour: Int, minute: Int, label: String, daysSelected: List<String>) {
+    fun addAlarm(hour: Int, minute: Int, label: String, daysSelected: List<String>, toneUri: String = "", toneName: String = "Default Tone") {
         viewModelScope.launch {
             val daysStr = daysSelected.joinToString(",")
             val alarm = Alarm(
                 hour = hour,
                 minute = minute,
                 label = label.ifBlank { "Alarm" },
-                daysSelected = daysStr
+                daysSelected = daysStr,
+                toneUri = toneUri,
+                toneName = toneName
             )
             repository.insert(alarm)
+        }
+    }
+
+    fun updateAlarm(alarm: Alarm) {
+        viewModelScope.launch {
+            repository.update(alarm)
         }
     }
 
@@ -114,7 +122,7 @@ class AlarmViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun scheduleQuickTest(alarm: Alarm) {
-        repository.scheduleQuickTestAlarm(delaySeconds = 5, alarmId = alarm.id)
+        repository.scheduleQuickTestAlarm(delaySeconds = 5, alarmId = alarm.id, toneUri = alarm.toneUri)
     }
 
     // --- Math Operations ---

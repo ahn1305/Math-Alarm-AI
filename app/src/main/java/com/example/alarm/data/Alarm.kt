@@ -11,7 +11,9 @@ data class Alarm(
     val label: String = "Alarm",
     val isEnabled: Boolean = true,
     val isVibrate: Boolean = true,
-    val daysSelected: String = "" // Comma-separated list like "Mon,Tue,Wed,Thu,Fri" or empty for once
+    val daysSelected: String = "", // Comma-separated list like "Mon,Tue,Wed,Thu,Fri" or empty for once
+    val toneUri: String = "",
+    val toneName: String = "Default Tone"
 ) {
     fun getFormattedTime(): String {
         val amPm = if (hour >= 12) "PM" else "AM"
